@@ -7,13 +7,9 @@ use Data::Dumper;
 use utf8;
 use Encode;
 
-open UH, "unhappyemigrant.txt" or die;
-chomp(my @phr = <UH>);
-close UH;
-
-open AU, "authtoken" or die;
-chomp(my $token = <AU>);
-close AU;
+open AU, "authtoken" or die; chomp(my $token = <AU>); close AU;
+open UH, "unhappyemigrant.txt" or die; chomp(my @phr = <UH>); close UH;
+open PI, "unhappyemigrant.pic" or die; chomp(my @pic = <PI>); close PI;
 
 $| = 1;
 my $api = WWW::Telegram::BotAPI->new(token => $token);
@@ -21,16 +17,15 @@ my $api = WWW::Telegram::BotAPI->new(token => $token);
 $api->agent->can("inactivity_timeout") and $api->agent->inactivity_timeout(45);
 my $me = $api->getMe or die;
 my ($offset, $updates) = 0;
+my $lastpic;
 
-my $citecache;
+my ($citecache, $piccache);
 
 sub getCite($) {
 	my $message = shift;
 	my $from = $message->{from};
 	my $id = $message->{chat}{id} || 'u' . $from->{id};
-	if(!$citecache->{$id} || $citecache->{$id}->{pos} > $#phr) {
-		$citecache->{$id} = { pos => 0, cites => [ shuffle(0..$#phr) ] };
-	}
+	$citecache->{$id} = { pos => 0, cites => [ shuffle(0..$#phr) ] } if !$citecache->{$id} || $citecache->{$id}->{pos} > $#phr;
 	my $eprob = rand(100);
 	my $ending = '.';
 	if($eprob < 0.5) { $ending = join '', map { ["!", "1"]->[int rand 2] x (2 + int rand 5) } (0..2 + int rand 3) }
@@ -41,10 +36,19 @@ sub getCite($) {
 	return decode('utf8', $phr[$citecache->{$id}->{cites}->[$citecache->{$id}->{pos}++]]) . $ending;
 }
 
+sub getPic($) {
+	my $message = shift;
+	my $id = $message->{chat}{id} || 'u' . $message->{from}{id};
+	$piccache->{$id} = { pos => 0, pics => [ shuffle(0..$#pic) ] } if !$piccache->{$id} || $piccache->{$id}->{pos} > $#pic;
+	return { method => 'sendPhoto', photo => $pic[$piccache->{$id}->{pics}->[$piccache->{$id}->{pos}++]] };
+}
+
 my $commands = {
 	"start" => "Привет, тракторист! Шлёпни меня командой /smack",
-	"smack" => sub { getCite(shift) },
+	"smack" => sub { rand(100) < 10 ? getPic(shift) : getCite(shift) },
 	"changelog" => sub { open CH, 'ChangeLog'; chomp(my @cl = <CH>); close CH; join "\n", @cl; },
+	"lastpic" => sub { $lastpic || "Ничего нет :'(" },
+	"pic" => sub { getPic(shift) },
 	"_unknown" => "Unknown command :( Try /start"
 };
 
@@ -80,6 +84,9 @@ while(1) {
 				});
 			};
 			print "Reply sent.\n" unless $@;
+		}
+		if($u->{message}{photo}) {
+			$lastpic = $u->{message}{photo}[0]{file_id};
 		}
 	}
 }
