@@ -10,6 +10,7 @@ use Encode;
 open AU, "authtoken" or die; chomp(my $token = <AU>); close AU;
 open UH, "unhappyemigrant.txt" or die; chomp(my @phr = <UH>); close UH;
 open PI, "unhappyemigrant.pic" or die; chomp(my @pic = <PI>); close PI;
+open BN, "unhappyemigrant.bng" or die; chomp(my @bingo = <BN>); close BN;
 
 $| = 1;
 my $api = WWW::Telegram::BotAPI->new(token => $token);
@@ -19,7 +20,7 @@ my $me = $api->getMe or die;
 my ($offset, $updates) = 0;
 my $lastpic;
 
-my ($citecache, $piccache);
+my ($citecache, $piccache, $bingopos);
 
 sub getCite($) {
 	my $message = shift;
@@ -43,12 +44,20 @@ sub getPic($) {
 	return { method => 'sendPhoto', photo => $pic[$piccache->{$id}->{pics}->[$piccache->{$id}->{pos}++]] };
 }
 
+sub getBingo($) {
+	my $message = shift;
+	my $id = $message->{chat}{id} || 'u' . $message->{from}{id};
+	$bingopos->{$id} = 0 if !$bingopos->{$id} || $bingopos->{$id} > $#bingo;
+	return { method => 'sendPhoto', photo => $bingo[$bingopos->{$id}++] };
+}
+
 my $commands = {
 	"start" => "Привет, тракторист! Шлёпни меня командой /smack",
 	"smack" => sub { rand(100) < 10 ? getPic(shift) : getCite(shift) },
 	"changelog" => sub { open CH, 'ChangeLog'; chomp(my @cl = <CH>); close CH; join "\n", @cl; },
 	"lastpic" => sub { $lastpic || "Ничего нет :'(" },
 	"pic" => sub { getPic(shift) },
+	"bingo" => sub { getBingo(shift) },
 	"_unknown" => "Unknown command :( Try /start"
 };
 
