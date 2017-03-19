@@ -8,9 +8,6 @@ use utf8;
 use Encode;
 
 open AU, "authtoken" or die; chomp(my $token = <AU>); close AU;
-open UH, "unhappyemigrant.txt" or die; chomp(my @phr = <UH>); close UH;
-open PI, "unhappyemigrant.pic" or die; chomp(my @pic = <PI>); close PI;
-open BN, "unhappyemigrant.bng" or die; chomp(my @bingo = <BN>); close BN;
 
 $| = 1;
 my $api = WWW::Telegram::BotAPI->new(token => $token);
@@ -20,7 +17,15 @@ my $me = $api->getMe or die;
 my ($offset, $updates) = 0;
 my $lastpic;
 
+my (@phr, @pic, @bingo);
 my ($citecache, $piccache, $bingopos);
+
+sub reload() {
+	open UH, "unhappyemigrant.txt" or die; chomp(@phr = <UH>); close UH;
+	open PI, "unhappyemigrant.pic" or die; chomp(@pic = <PI>); close PI;
+	open BN, "unhappyemigrant.bng" or die; chomp(@bingo = <BN>); close BN;
+	return (scalar(@phr), scalar(@pic), scalar(@bingo));
+}
 
 sub getCite($) {
 	my $message = shift;
@@ -58,10 +63,16 @@ my $commands = {
 	"lastpic" => sub { $lastpic || "Ничего нет :'(" },
 	"pic" => sub { getPic(shift) },
 	"bingo" => sub { getBingo(shift) },
+	"reload" => sub {
+		my @r = reload;
+		$citecache = $piccache = $bingopos = undef;
+		return "$r[0] phrases, $r[1] pictures, $r[2] bingoes";
+	},
 	"_unknown" => "Unknown command :( Try /start"
 };
 
 printf "Hello! I am %s. Starting...\n", $me->{result}{username};
+reload();
 
 while(1) {
 	$updates = $api->getUpdates({
