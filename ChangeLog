@@ -1,5 +1,11 @@
 https://github.com/s0me0ne-unkn0wn/unhappyemigrantbot.git
 
+2017-04-18	Someone Unknown <s0me0ne@s0me0ne.com>
+
+	* 0.0.6: "typing", "sending photo" and delays
+	* 0.0.6: Authenticated /reload
+	* 0.0.6: Wrapper shellscript
+
 2017-03-19	Someone Unknown <s0me0ne@s0me0ne.com>
 
 	* 0.0.5: /reload, textfile fix

@@ -64,6 +64,7 @@ my $commands = {
 	"pic" => sub { getPic(shift) },
 	"bingo" => sub { getBingo(shift) },
 	"reload" => sub {
+		return "Шалунишка!" unless $_[1] eq $token;
 		my @r = reload;
 		$citecache = $piccache = $bingopos = undef;
 		return "$r[0] phrases, $r[1] pictures, $r[2] bingoes";
@@ -96,6 +97,15 @@ while(1) {
 			$res = $res->($u->{message}, @params) if ref $res eq "CODE";
 			next unless $res;
 			my $method = ref $res && $res->{method} ? delete $res->{method} : "sendMessage";
+			for(my $i = 0; $i < ($method eq 'sendPhoto' ? 2 + int rand 3 : length(ref $res ? $res->{text} : $res) / 18) + 1; $i++) {
+				sleep(1);
+				eval {
+					$api->sendChatAction({
+						chat_id => $u->{message}{chat}{id},
+						action => $method eq 'sendPhoto' ? 'upload_photo' : 'typing'
+					});
+				};
+			}
 			eval {
 				$api->$method({
 					chat_id => $u->{message}{chat}{id},
