@@ -19,26 +19,36 @@ my $me = $api->getMe or die;
 my ($offset, $updates) = 0;
 my $lastpic;
 
-my (@phr, @pic, @bingo);
+#my (@phr, @pic, @bingo);
 my %ADMIN = ( 116204011 => 1 );
-my %CACHE;
-tie %CACHE, "DBM::Deep", {
+my %C;
+tie %C, "DBM::Deep", {
 	file => 'unhappyemigrant.cch',
 	autoflush => 1
 };
 
-sub reload() {
-	open UH, "unhappyemigrant.txt" or die; chomp(@phr = <UH>); close UH;
-	open PI, "unhappyemigrant.pic" or die; chomp(@pic = <PI>); close PI;
-	open BN, "unhappyemigrant.bng" or die; chomp(@bingo = <BN>); close BN;
-	return (scalar(@phr), scalar(@pic), scalar(@bingo));
+my %migrate = (
+	"unhappyemigrant.txt" => 'cites',
+	"unhappyemigrant.pic" => 'pics',
+	"unhappyemigrant.bng" => 'bingoes'
+);
+
+for my $m (keys %migrate) {
+	if(-f $m) {
+		print "Migrating $m...\n";
+		open M, $m or die;
+		chomp(my @m = <M>);
+		close M;
+		@{$C{$migrate{$m}}} = @m;
+		rename $m, "$m~";
+	}
 }
 
 sub getCite($) {
 	my $message = shift;
 	my $from = $message->{from};
 	my $id = $message->{chat}{id} || 'u' . $from->{id};
-	$CACHE{cite}->{$id} = { pos => 0, cites => [ shuffle(0..$#phr) ] } if !$CACHE{cite}->{$id} || $CACHE{cite}->{$id}->{pos} > $#phr;
+	$C{cite}->{$id} = { pos => 0, cites => [ shuffle(0..$#{$C{cites}}) ] } if !$C{cite}->{$id} || $C{cite}->{$id}->{pos} > $#{$C{cites}};
 	my $eprob = rand(100);
 	my $ending = '.';
 	if($eprob < 0.5) { $ending = join '', map { ["!", "1"]->[int rand 2] x (2 + int rand 5) } (0..2 + int rand 3) }
@@ -46,21 +56,35 @@ sub getCite($) {
 	elsif($eprob < 10) { $ending = '!'; }
 	elsif($eprob < 20) { $ending = '...'; }
 	elsif($eprob < 30) { $ending = ', ' . ($from->{username} ? '@' . $from->{username} : join ' ', $from->{first_name}, $from->{last_name}) }
-	return decode('utf8', $phr[$CACHE{cite}->{$id}->{cites}->[$CACHE{cite}->{$id}->{pos}++]]) . $ending;
+	return decode('utf8', $C{cites}->[$C{cite}->{$id}->{cites}->[$C{cite}->{$id}->{pos}++]]) . $ending;
 }
 
 sub getPic($) {
 	my $message = shift;
 	my $id = $message->{chat}{id} || 'u' . $message->{from}{id};
-	$CACHE{pic}->{$id} = { pos => 0, pics => [ shuffle(0..$#pic) ] } if !$CACHE{pic}->{$id} || $CACHE{pic}->{$id}->{pos} > $#pic;
-	return { method => 'sendPhoto', photo => $pic[$CACHE{pic}->{$id}->{pics}->[$CACHE{pic}->{$id}->{pos}++]] };
+	$C{pic}->{$id} = { pos => 0, pics => [ shuffle(0..$#{$C{pics}}) ] } if !$C{pic}->{$id} || $C{pic}->{$id}->{pos} > $#{$C{pics}};
+	return { method => 'sendPhoto', photo => $C{pics}->[$C{pic}->{$id}->{pics}->[$C{pic}->{$id}->{pos}++]] };
 }
 
 sub getBingo($) {
 	my $message = shift;
 	my $id = $message->{chat}{id} || 'u' . $message->{from}{id};
-	$CACHE{bingo}->{$id} = 0 if !$CACHE{bingo}->{$id} || $CACHE{bingo}->{$id} > $#bingo;
-	return { method => 'sendPhoto', photo => $bingo[$CACHE{bingo}->{$id}++] };
+	$C{bingo}->{$id} = 0 if !$C{bingo}->{$id} || $C{bingo}->{$id} > $#{$C{bingoes}};
+	return { method => 'sendPhoto', photo => $C{bingoes}->[$C{bingo}->{$id}++] };
+}
+
+sub addEntity {
+	my $msg = shift;
+	return "Шалунишка!" unless $ADMIN{$msg->{chat}{id}};
+	my $arr = shift;
+	return "Не поняла, куда мне это засунуть?" unless { 'cites' => 1, 'pics' => 1, 'bingoes' => 1 }->{$arr};
+	push @{$C{$arr}}, join(' ', @_);
+	if($arr =~ /^[cp]/) {
+		my $cache = $arr;
+		$cache =~ s/s$//;
+		push @{$C{$cache}->{$_}->{cites}}, $#{$C{$arr}};
+	}
+	"Да, шеф!";
 }
 
 my $commands = {
@@ -70,21 +94,28 @@ my $commands = {
 	lastpic => sub { $lastpic or "Ничего нет :'(" },
 	pic => sub { getPic shift },
 	bingo => sub { getBingo shift },
-	reload => sub {
-		return "Шалунишка!" unless $ADMIN{shift->{chat}{id}};
-		my @r = reload;
-		# TODO: Loose cache regeneration
-		return "$r[0] phrases, $r[1] pictures, $r[2] bingoes";
-	},
+	add => \&addEntity,
+#	reload => sub {
+#		return "Шалунишка!" unless $ADMIN{shift->{chat}{id}};
+#		my @r = reload;
+#		# TODO: Loose cache regeneration
+#		return "$r[0] phrases, $r[1] pictures, $r[2] bingoes";
+#	},
 	chatid => sub { shift->{chat}{id} },
 	fromid => sub { shift->{from}{id} },
 	fromuser => sub { shift->{from}{username} },
-	dumpcache => sub { $ADMIN{shift->{chat}{id}} ? warn(Dumper \%CACHE) && 'Да, шеф!' : 'Шалунишка!'  },
-	"_unknown" => "Unknown command :( Try /start"
+	dumpcache => sub { $ADMIN{shift->{chat}{id}} ? warn(Dumper \%C) && 'Да, шеф!' : 'Шалунишка!'  },
+	recache => sub {
+		return "Шалунишка!" unless $ADMIN{shift->{chat}{id}};
+		$C{cite} = {};
+		$C{pic} = {};
+		$C{bingo} = {};
+		"Да, шеф!";
+	},
+	"_unknown" => "Тут нету ничего! Уходите!"
 };
 
 printf "Hello! I am %s. Starting...\n", $me->{result}{username};
-reload();
 
 while(1) {
 	$updates = $api->getUpdates({
