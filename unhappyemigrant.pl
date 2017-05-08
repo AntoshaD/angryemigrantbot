@@ -19,30 +19,12 @@ my $me = $api->getMe or die;
 my ($offset, $updates) = 0;
 my $lastpic;
 
-#my (@phr, @pic, @bingo);
 my %ADMIN = ( 116204011 => 1 );
 my %C;
 tie %C, "DBM::Deep", {
 	file => 'unhappyemigrant.cch',
 	autoflush => 1
 };
-
-my %migrate = (
-	"unhappyemigrant.txt" => 'cites',
-	"unhappyemigrant.pic" => 'pics',
-	"unhappyemigrant.bng" => 'bingoes'
-);
-
-for my $m (keys %migrate) {
-	if(-f $m) {
-		print "Migrating $m...\n";
-		open M, $m or die;
-		chomp(my @m = <M>);
-		close M;
-		@{$C{$migrate{$m}}} = @m;
-		rename $m, "$m~";
-	}
-}
 
 sub getCite($) {
 	my $message = shift;
@@ -78,12 +60,32 @@ sub addEntity {
 	return "Шалунишка!" unless $ADMIN{$msg->{chat}{id}};
 	my $arr = shift;
 	return "Не поняла, куда мне это засунуть?" unless { 'cites' => 1, 'pics' => 1, 'bingoes' => 1 }->{$arr};
-	push @{$C{$arr}}, join(' ', @_);
-	if($arr =~ /^[cp]/) {
-		my $cache = $arr;
-		$cache =~ s/s$//;
-		push @{$C{$cache}->{$_}->{cites}}, $#{$C{$arr}};
+	push @{$C{$arr}}, join(' ', map { encode 'utf-8', $_ } @_);
+	"Да, шеф!";
+}
+
+sub popEntity {
+	my $msg = shift;
+	return "Шалунишка!" unless $ADMIN{$msg->{chat}{id}};
+	my $arr = shift;
+	return "Не поняла, откуда мне это вынуть?" unless { 'cites' => 1, 'pics' => 1, 'bingoes' => 1 }->{$arr};
+	pop @{$C{$arr}};
+	"Да, шеф!";
+}
+
+sub reroll {
+	my $msg = shift;
+	return "Шалунишка!" unless $ADMIN{$msg->{chat}{id}};
+	for my $ent (qw(cite pic)) {
+		warn "Rerolling $ent\n";
+		for my $chat (keys %{$C{cite}}) {
+			next unless @{$C{$ent}->{$chat}->{$ent . 's'}};
+			my @o = @{$C{$ent}->{$chat}->{$ent . 's'}}[0..$C{$ent}->{$chat}->{pos}];
+			my %t = map { $_ => 1 } @o;
+			map { push @o, $_ unless $t{$_} } shuffle 0..$#{$C{$ent . 's'}};
+		}
 	}
+	# TODO: Reroll bingoes
 	"Да, шеф!";
 }
 
@@ -95,12 +97,8 @@ my $commands = {
 	pic => sub { getPic shift },
 	bingo => sub { getBingo shift },
 	add => \&addEntity,
-#	reload => sub {
-#		return "Шалунишка!" unless $ADMIN{shift->{chat}{id}};
-#		my @r = reload;
-#		# TODO: Loose cache regeneration
-#		return "$r[0] phrases, $r[1] pictures, $r[2] bingoes";
-#	},
+	'pop' => \&popEntity,
+	reroll => \&reroll,
 	chatid => sub { shift->{chat}{id} },
 	fromid => sub { shift->{from}{id} },
 	fromuser => sub { shift->{from}{username} },
@@ -110,6 +108,12 @@ my $commands = {
 		$C{cite} = {};
 		$C{pic} = {};
 		$C{bingo} = {};
+		"Да, шеф!";
+	},
+	dumpcites => sub {
+		return "Шалунишка!" unless $ADMIN{shift->{chat}{id}};
+		my $i = 0;
+		print $i++ . "\t$_\n" for @{$C{cites}};
 		"Да, шеф!";
 	},
 	"_unknown" => "Тут нету ничего! Уходите!"
