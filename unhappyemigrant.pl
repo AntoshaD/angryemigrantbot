@@ -19,7 +19,6 @@ my $me = $api->getMe or die;
 my ($offset, $updates) = 0;
 my $lastpic;
 
-my %ADMIN = ( 116204011 => 1 );
 my %C;
 tie %C, "DBM::Deep", {
 	file => 'unhappyemigrant.cch',
@@ -57,7 +56,7 @@ sub getBingo($) {
 
 sub addEntity {
 	my $msg = shift;
-	return "Шалунишка!" unless $ADMIN{$msg->{chat}{id}};
+	return "Шалунишка!" unless $C{admin}->{$msg->{chat}{id}};
 	my $arr = shift;
 	return "Не поняла, куда мне это засунуть?" unless { 'cites' => 1, 'pics' => 1, 'bingoes' => 1 }->{$arr};
 	push @{$C{$arr}}, join(' ', map { encode 'utf-8', $_ } @_);
@@ -66,7 +65,7 @@ sub addEntity {
 
 sub popEntity {
 	my $msg = shift;
-	return "Шалунишка!" unless $ADMIN{$msg->{chat}{id}};
+	return "Шалунишка!" unless $C{admin}->{$msg->{chat}{id}};
 	my $arr = shift;
 	return "Не поняла, откуда мне это вынуть?" unless { 'cites' => 1, 'pics' => 1, 'bingoes' => 1 }->{$arr};
 	pop @{$C{$arr}};
@@ -75,7 +74,7 @@ sub popEntity {
 
 sub reroll {
 	my $msg = shift;
-	return "Шалунишка!" unless $ADMIN{$msg->{chat}{id}};
+	return "Шалунишка!" unless $C{admin}->{$msg->{chat}{id}};
 	for my $ent (qw(cite pic)) {
 		warn "Rerolling $ent\n";
 		for my $chat (keys %{$C{cite}}) {
@@ -102,18 +101,25 @@ my $commands = {
 	chatid => sub { shift->{chat}{id} },
 	fromid => sub { shift->{from}{id} },
 	fromuser => sub { shift->{from}{username} },
-	dumpcache => sub { $ADMIN{shift->{chat}{id}} ? warn(Dumper \%C) && 'Да, шеф!' : 'Шалунишка!'  },
+	dumpcache => sub { $C{admin}->{shift->{chat}{id}} ? warn(Dumper \%C) && 'Да, шеф!' : 'Шалунишка!'  },
 	recache => sub {
-		return "Шалунишка!" unless $ADMIN{shift->{chat}{id}};
+		return "Шалунишка!" unless $C{admin}->{shift->{chat}{id}};
+		return "Скажи волшебное слово!" unless shift eq 'please';
 		$C{cite} = {};
 		$C{pic} = {};
 		$C{bingo} = {};
 		"Да, шеф!";
 	},
 	dumpcites => sub {
-		return "Шалунишка!" unless $ADMIN{shift->{chat}{id}};
+		return "Шалунишка!" unless $C{admin}->{shift->{chat}{id}};
 		my $i = 0;
 		print $i++ . "\t$_\n" for @{$C{cites}};
+		"Да, шеф!";
+	},
+	admin => sub {
+		my $msg = shift;
+		return "Шалунишка!" if $C{admin} && !$C{admin}->{$msg->{chat}{id}};
+		$C{admin}->{$_[0]} = 1;
 		"Да, шеф!";
 	},
 	"_unknown" => "Тут нету ничего! Уходите!"
