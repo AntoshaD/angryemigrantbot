@@ -1,5 +1,14 @@
 https://github.com/s0me0ne-unkn0wn/unhappyemigrantbot.git
 
+2017-05-24	Someone Unknown <s0me0ne@s0me0ne.com>
+
+	* 0.0.8: Finish migration to DBM::Deep
+	* 0.0.8: /reload removed
+	* 0.0.8: /admin, /reroll, /add, /pop added
+	* 0.0.8: More dump facilities
+	* 0.0.8: /recache rewritten
+	* 0.0.8: Code and data cleanup
+
 2017-05-06	Someone Unknown <s0me0ne@s0me0ne.com>
 
 	* 0.0.7: Start migrating to DBM::Deep
