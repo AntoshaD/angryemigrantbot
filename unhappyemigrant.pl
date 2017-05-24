@@ -77,11 +77,12 @@ sub reroll {
 	return "Шалунишка!" unless $C{admin}->{$msg->{chat}{id}};
 	for my $ent (qw(cite pic)) {
 		warn "Rerolling $ent\n";
-		for my $chat (keys %{$C{cite}}) {
+		for my $chat (keys %{$C{$ent}}) {
 			next unless @{$C{$ent}->{$chat}->{$ent . 's'}};
 			my @o = @{$C{$ent}->{$chat}->{$ent . 's'}}[0..$C{$ent}->{$chat}->{pos}];
 			my %t = map { $_ => 1 } @o;
 			map { push @o, $_ unless $t{$_} } shuffle 0..$#{$C{$ent . 's'}};
+			@{$C{$ent}->{$chat}->{$ent . 's'}} = @o;
 		}
 	}
 	# TODO: Reroll bingoes
@@ -103,11 +104,18 @@ my $commands = {
 	fromuser => sub { shift->{from}{username} },
 	dumpcache => sub { $C{admin}->{shift->{chat}{id}} ? warn(Dumper \%C) && 'Да, шеф!' : 'Шалунишка!'  },
 	recache => sub {
-		return "Шалунишка!" unless $C{admin}->{shift->{chat}{id}};
-		return "Скажи волшебное слово!" unless shift eq 'please';
-		$C{cite} = {};
-		$C{pic} = {};
-		$C{bingo} = {};
+		my ($msg, $chat) = @_;
+		return "Шалунишка!" unless $C{admin}->{$msg->{chat}{id}};
+		if($chat =~ /^[-]?\d+$/) {
+			delete $C{cite}->{$chat};
+			delete $C{pic}->{$chat};
+			delete $C{bingo}->{$chat};
+		} else {
+			return "Скажи волшебное слово!" unless $chat eq 'please';
+			$C{cite} = {};
+			$C{pic} = {};
+			$C{bingo} = {};
+		}
 		"Да, шеф!";
 	},
 	dumpcites => sub {
